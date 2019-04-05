@@ -72,7 +72,7 @@ def yt_init():
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=credentials)
     
 def yt_add(id):
-    if not yt_check(id):
+    if not id in yt_list():
         request = youtube.playlistItems().insert(
         part="snippet",
         body={
@@ -87,25 +87,24 @@ def yt_add(id):
         }
     )
     response = request.execute()
+    print(response)
 
 def yt_del(id):
-    if yt_check(id):
+    vids = yt_list()
+    if id in vids:
         
-
-def yt_check(id):
-    return (id in yt_list)
 
 def yt_list():
     ids = []
     request = youtube.playlistItems().list(
-        part="snippet,contentDetails",
-        maxResults=1000,
+        part="contentDetails",
+        maxResults=50,
         playlistId=playlistID
     )
     response = request.execute()
-    for r in response:
-        if r.snippet.resourceId.kind == "youtube#video":
-            ids.append(r.snippet.resourceId.videoId)
+    for r in response['items']:
+        if r['snippet']['resourceId']['kind'] == "youtube#video":
+            ids.append(['snippet']['resourceId']['videoId'])
     if ids == []:
         ids = False
     return ids
