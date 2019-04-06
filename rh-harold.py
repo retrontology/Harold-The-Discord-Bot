@@ -35,13 +35,13 @@ async def on_message(message):
     for id in parse_message_content(message):
         yt_add(id)
 
-@harold.event
-async def on_message_edit(before, after):
-    update_yt_list()
-    for id in parse_message_content(before):
-        yt_del(id)
-    for id in parse_message_content(after):
-        yt_add(id)
+#@harold.event
+#async def on_message_edit(before, after):
+    #update_yt_list()
+    #for id in parse_message_content(before):
+        #yt_del(id)
+    #for id in parse_message_content(after):
+        #yt_add(id)
 
 @harold.event
 async def on_message_delete(message):
@@ -104,7 +104,6 @@ def yt_init():
     
 def yt_add(id):
     if not id in yt_list:
-        
         request = youtube.playlistItems().insert(
         part="snippet",
         body={
@@ -127,6 +126,7 @@ def yt_add(id):
 
 def yt_del(id):
     itemID = False
+    npt = ""
     while True:
         request = youtube.playlistItems().list(
             part="snippet",
