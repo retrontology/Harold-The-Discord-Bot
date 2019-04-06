@@ -5,7 +5,9 @@ import google.oauth2.credentials
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import googleapiclient.errors
-import threading
+import re
+import sys
+from urllib import parse
 
 TOKEN = 'discord bot token'
 channelID = 'discord channel id'
@@ -30,26 +32,26 @@ async def on_resumed():
 @harold.event
 async def on_message(message):
     update_yt_list()
-    for id in parse_message(message):
+    for id in parse_message_content(message):
         yt_add(id)
 
 @harold.event
 async def on_message_edit(before, after):
     update_yt_list()
-    for id in parse_message(before):
+    for id in parse_message_content(before):
         yt_del(id)
-    for id in parse_message(after):
+    for id in parse_message_content(after):
         yt_add(id)
 
 @harold.event
 async def on_message_delete(message):
     update_yt_list()
-    for id in parse_message(message):
+    for id in parse_message_content(message):
         yt_del(id)
 
-def parse_message(message):
+def parse_message_embed(message):
     ids = []
-    if message.channel.is_private == False and message.channel.id == channelID:
+    if message.channel.id == channelID:
         if message.author == harold.user:
             return
         ids = []
@@ -57,20 +59,36 @@ def parse_message(message):
             if embed.provider.url == provider:
                 ids.append(parse_yt_id(embed.video.url))
     return ids
+    
+def parse_message_content(message):
+    ids = []
+    if message.channel.id == channelID:
+        print("Parsing following message content for youtube links: \r\n" + message.content)
+        if message.author == harold.user:
+            return
+        for r in re.findall(r'(https?://\S+)', message.content):
+            url = parse.urlparse(r)
+            if url.netloc in ['youtu.be','m.youtube.com','www.youtube.com','youtube.com']:
+                if url.path == "/watch":
+                    for q in parse.parse_qsl(url.query):
+                        if q[0] == 'v':
+                            print("Found: " + q[1])
+                            ids.append(q[1])
+                            break
+                else:
+                    ids.append(url.path.replace("/",""))
+                    print("Found: " + url.path.replace("/",""))
+    return ids
 
 async def check_old(cid):
     threads = []
     chan = discord.Channel
-    chan.id = channelID
-    async for message in harold.logs_from(chan, limit=50, before=datetime.now()):
+    chan.id = cid
+    async for message in harold.logs_from(chan, limit=200, before=datetime.now()):
         print(message.content)
-        for id in parse_message(message):
+        for id in parse_message_content(message):
             print(id)
-            t = threading.Thread(target=yt_add, args=(id,))
-            t.start()
-            threads.append(t)
-    for t in threads:
-        t.join()
+            yt_add(id)
 
 def parse_yt_id(message):
     return message.replace(embedurl, "")
@@ -86,6 +104,7 @@ def yt_init():
     
 def yt_add(id):
     if not id in yt_list:
+        
         request = youtube.playlistItems().insert(
         part="snippet",
         body={
@@ -99,7 +118,12 @@ def yt_add(id):
           }
         }
     )
-    print(request.execute())
+    try:
+        r = request.execute()
+        print(r)
+    except:
+        e = sys.exc_info()[0]
+        print(e)
 
 def yt_del(id):
     itemID = False
@@ -123,7 +147,12 @@ def yt_del(id):
         request = youtube.playlistItems().delete(
             id=itemID
         )
-        print(request.execute())
+        try:
+            r = request.execute()
+            print(r)
+        except:
+            e = sys.exc_info()[0]
+            print(e)
         return True
     else:
         return False
