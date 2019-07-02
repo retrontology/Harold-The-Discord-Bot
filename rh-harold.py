@@ -10,7 +10,7 @@ import sys
 from urllib import parse
 
 TOKEN = 'discord bot token'
-channelID = 'discord channel id'
+channelID = #discord channel id as a number
 playlistID = 'youtube playlist id'
 provider = "https://www.youtube.com/"
 embedurl = "https://www.youtube.com/embed/"
@@ -28,7 +28,7 @@ async def on_ready():
 async def on_resumed():
     update_yt_list()
     await check_old(channelID)
-    
+
 @harold.event
 async def on_message(message):
     update_yt_list()
@@ -37,11 +37,11 @@ async def on_message(message):
 
 #@harold.event
 #async def on_message_edit(before, after):
-    #update_yt_list()
-    #for id in parse_message_content(before):
-        #yt_del(id)
-    #for id in parse_message_content(after):
-        #yt_add(id)
+#    update_yt_list()
+#    for id in parse_message_content(before):
+#        yt_del(id)
+#    for id in parse_message_content(after):
+#        yt_add(id)
 
 @harold.event
 async def on_message_delete(message):
@@ -82,9 +82,9 @@ def parse_message_content(message):
 
 async def check_old(cid):
     threads = []
-    chan = discord.Channel
+    chan = discord.channel
     chan.id = cid
-    async for message in harold.logs_from(chan, limit=200, before=datetime.now()):
+    async for message in harold.get_channel(channelID).history():
         print(message.content)
         for id in parse_message_content(message):
             print(id)
