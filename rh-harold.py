@@ -65,8 +65,8 @@ class Harold(discord.Client):
                         print("Found: " + url.path.replace("/",""))
         return ids
 
-    def check_old(self, channelID):
-        for message in self.get_channel(channelID).history():
+    async def check_old(self, channelID):
+        async for message in self.get_channel(channelID).history():
             for id in self.parse_message_content(message):
                 print(id)
                 self.yt_add(id)
