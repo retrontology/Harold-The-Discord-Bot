@@ -1,151 +1,112 @@
 import discord
 import os
 from datetime import datetime
-import google.oauth2.credentials
-import google_auth_oauthlib.flow
-import googleapiclient.discovery
+from googleapiclient.discovery import build
+from oauth2client.client import flow_from_clientsecrets
+from oauth2client.file import Storage
+from oauth2client.tools import run_flow
 import googleapiclient.errors
 import re
 import sys
 from urllib import parse
+from harold_config import harold_config
+import httplib2
 
-TOKEN = 'discord bot token'
-channelID = #discord channel id as a number
-playlistID = 'youtube playlist id'
-provider = "https://www.youtube.com/"
-embedurl = "https://www.youtube.com/embed/"
-harold = discord.Client()
-youtube = False
-scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
-jsonsecretfile = "client_secret_file.json"
 
-@harold.event
-async def on_ready():
-    update_yt_list()
-    await check_old(channelID)
+class Harold(discord.Client):
 
-@harold.event
-async def on_resumed():
-    update_yt_list()
-    await check_old(channelID)
+    def __init__(self, config, *args, **kwargs):
+        self.config = config
+        self.youtube = self.yt_init()
+        super(Harold, self).__init__(*args, **kwargs)
 
-@harold.event
-async def on_message(message):
-    update_yt_list()
-    for id in parse_message_content(message):
-        yt_add(id)
+    async def on_ready(self):
+        self.update_yt_list()
+        await self.check_old(self.config['channelID'])
 
-#@harold.event
-#async def on_message_edit(before, after):
-#    update_yt_list()
-#    for id in parse_message_content(before):
-#        yt_del(id)
-#    for id in parse_message_content(after):
-#        yt_add(id)
+    async def on_resumed(self):
+        self.update_yt_list()
+        await self.check_old(self.config['channelID'])
 
-@harold.event
-async def on_message_delete(message):
-    update_yt_list()
-    for id in parse_message_content(message):
-        yt_del(id)
+    async def on_message(self, message):
+        self.update_yt_list()
+        for id in self.parse_message_content(message):
+            self.yt_add(id)
 
-def parse_message_embed(message):
-    ids = []
-    if message.channel.id == channelID:
-        if message.author == harold.user:
-            return
+    # async def on_message_edit(before, after):
+    #     update_yt_list()
+    #     for id in parse_message_content(before):
+    #         yt_del(id)
+    #     for id in parse_message_content(after):
+    #         yt_add(id)
+
+    async def on_message_delete(self, message):
+        self.update_yt_list()
+        for id in self.parse_message_content(message):
+            self.yt_del(id)
+    
+    def parse_message_content(self, message):
         ids = []
-        for embed in message.embeds:
-            if embed.provider.url == provider:
-                ids.append(parse_yt_id(embed.video.url))
-    return ids
-    
-def parse_message_content(message):
-    ids = []
-    if message.channel.id == channelID:
-        print("Parsing following message content for youtube links: \r\n" + message.content)
-        if message.author == harold.user:
-            return
-        for r in re.findall(r'(https?://\S+)', message.content):
-            url = parse.urlparse(r)
-            if url.netloc in ['youtu.be','m.youtube.com','www.youtube.com','youtube.com']:
-                if url.path == "/watch":
-                    for q in parse.parse_qsl(url.query):
-                        if q[0] == 'v':
-                            print("Found: " + q[1])
-                            ids.append(q[1])
-                            break
-                else:
-                    ids.append(url.path.replace("/",""))
-                    print("Found: " + url.path.replace("/",""))
-    return ids
+        if message.channel.id == self.config['channelID']:
+            print("Parsing following message content for youtube links: \r\n" + message.content)
+            if message.author == self.user:
+                return
+            for r in re.findall(r'(https?://\S+)', message.content):
+                url = parse.urlparse(r)
+                if url.netloc in ['youtu.be','m.youtube.com','www.youtube.com','youtube.com']:
+                    if url.path == "/watch":
+                        for q in parse.parse_qsl(url.query):
+                            if q[0] == 'v':
+                                print("Found: " + q[1])
+                                ids.append(q[1])
+                                break
+                    else:
+                        ids.append(url.path.replace("/",""))
+                        print("Found: " + url.path.replace("/",""))
+        return ids
 
-async def check_old(cid):
-    threads = []
-    chan = discord.channel
-    chan.id = cid
-    async for message in harold.get_channel(channelID).history():
-        print(message.content)
-        for id in parse_message_content(message):
-            print(id)
-            yt_add(id)
-
-def parse_yt_id(message):
-    return message.replace(embedurl, "")
+    def check_old(self, channelID):
+        for message in self.get_channel(channelID).history():
+            for id in self.parse_message_content(message):
+                print(id)
+                self.yt_add(id)
     
-def yt_init():
-    global youtube
-    api_service_name = "youtube"
-    api_version = "v3"
-    client_secrets_file = jsonsecretfile
-    flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(client_secrets_file, scopes)
-    credentials = flow.run_console()
-    youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=credentials)
-    
-def yt_add(id):
-    if not id in yt_list:
-        request = youtube.playlistItems().insert(
-        part="snippet",
-        body={
-          "snippet": {
-            "playlistId": playlistID,
-            "position": 0,
-            "resourceId": {
-              "kind": "youtube#video",
-              "videoId": id
-            }
-          }
-        }
-    )
-    try:
-        r = request.execute()
-        print(r)
-    except:
-        e = sys.exc_info()[0]
-        print(e)
+    def yt_init(self):
+        MISSING_CLIENT_SECRETS_MESSAGE = """
+WARNING: Please configure OAuth 2.0
 
-def yt_del(id):
-    itemID = False
-    npt = ""
-    while True:
-        request = youtube.playlistItems().list(
+To make this sample run you will need to populate the client_secrets.json file
+found at:
+
+   %s
+
+with information from the API Console
+https://console.developers.google.com/
+
+For more information about the client_secrets.json file format, please visit:
+https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
+""" % os.path.abspath(os.path.join(os.path.dirname(__file__), self.config['json']))
+        storage = Storage("%s-oauth2.json" % sys.argv[0])
+        creds = storage.get()
+        if creds is None or creds.invalid:
+            flow = flow_from_clientsecrets(self.config['json'], scope="https://www.googleapis.com/auth/youtube.force-ssl", message=MISSING_CLIENT_SECRETS_MESSAGE)
+            creds = run_flow(flow, storage)
+        return build('youtube', 'v3', http=creds.authorize(httplib2.Http()))
+    
+    def yt_add(self, id):
+        if not id in self.yt_list:
+            request = self.youtube.playlistItems().insert(
             part="snippet",
-            maxResults=50,
-            pageToken=npt,
-            playlistId=playlistID
-        )
-        response = request.execute()
-        for r in response['items']:
-            if r['snippet']['resourceId']['kind'] == "youtube#video" and r['snippet']['resourceId']['videoId'] == id:
-                itemID = r['id']
-                break
-        if 'nextPageToken' in response and not itemID:
-            npt = response['nextPageToken']
-        else:
-            break
-    if itemID:
-        request = youtube.playlistItems().delete(
-            id=itemID
+            body={
+                "snippet": {
+                    "playlistId": self.config['playlistID'],
+                    "position": 0,
+                    "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": id
+                    }
+                }
+            }
         )
         try:
             r = request.execute()
@@ -153,30 +114,64 @@ def yt_del(id):
         except:
             e = sys.exc_info()[0]
             print(e)
-        return True
-    else:
-        return False
 
-def update_yt_list():
-    ids = []
-    npt = ""
-    global yt_list
-    while True:
-        request = youtube.playlistItems().list(
-            part="snippet",
-            maxResults=50,
-            pageToken=npt,
-            playlistId=playlistID
-        )
-        response = request.execute()
-        for r in response['items']:
-            if r['snippet']['resourceId']['kind'] == "youtube#video":
-                ids.append(r['snippet']['resourceId']['videoId'])
-        if 'nextPageToken' in response:
-            npt = response['nextPageToken']
+    def yt_del(self, id):
+        itemID = False
+        npt = ""
+        while True:
+            request = self.youtube.playlistItems().list(
+                part="snippet",
+                maxResults=50,
+                pageToken=npt,
+                playlistId=self.config['playlistID']
+            )
+            response = request.execute()
+            for r in response['items']:
+                if r['snippet']['resourceId']['kind'] == "youtube#video" and r['snippet']['resourceId']['videoId'] == id:
+                    itemID = r['id']
+                    break
+            if 'nextPageToken' in response and not itemID:
+                npt = response['nextPageToken']
+            else:
+                break
+        if itemID:
+            request = self.youtube.playlistItems().delete(id=itemID)
+            try:
+                r = request.execute()
+                print(r)
+            except:
+                e = sys.exc_info()[0]
+                print(e)
+            return True
         else:
-            break
-    yt_list = ids
+            return False
 
-yt_init()
-harold.run(TOKEN)
+    def update_yt_list(self):
+        ids = []
+        npt = ""
+        while True:
+            request = self.youtube.playlistItems().list(
+                part="snippet",
+                maxResults=50,
+                pageToken=npt,
+                playlistId=self.config['playlistID']
+            )
+            response = request.execute()
+            for r in response['items']:
+                if r['snippet']['resourceId']['kind'] == "youtube#video":
+                    ids.append(r['snippet']['resourceId']['videoId'])
+            if 'nextPageToken' in response:
+                npt = response['nextPageToken']
+            else:
+                break
+        self.yt_list = ids
+
+
+def main():
+    config = harold_config('config.yaml')
+    harold = Harold(config)
+    harold.run()
+
+
+if __name__ == '__main__':
+    main()
