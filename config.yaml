@@ -1,0 +1,6 @@
+discord:
+  token: "xXxXxXxXxXx"
+  channelID: 000000000
+youtube:
+  json: "secrets.json"
+  playlistID: "PLgYcYpivCy-ebuQWcqLZ7Ku_QkWn1b5B1"
