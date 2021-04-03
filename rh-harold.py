@@ -22,11 +22,11 @@ class Harold(discord.Client):
 
     async def on_ready(self):
         self.update_yt_list()
-        await self.check_old(self.config['channelID'])
+        await self.check_old(self.config['discord']['channelID'])
 
     async def on_resumed(self):
         self.update_yt_list()
-        await self.check_old(self.config['channelID'])
+        await self.check_old(self.config['discord']['channelID'])
 
     async def on_message(self, message):
         self.update_yt_list()
@@ -47,7 +47,7 @@ class Harold(discord.Client):
     
     def parse_message_content(self, message):
         ids = []
-        if message.channel.id == self.config['channelID']:
+        if message.channel.id == self.config['discord']['channelID']:
             print("Parsing following message content for youtube links: \r\n" + message.content)
             if message.author == self.user:
                 return
@@ -85,11 +85,11 @@ https://console.developers.google.com/
 
 For more information about the client_secrets.json file format, please visit:
 https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
-""" % os.path.abspath(os.path.join(os.path.dirname(__file__), self.config['json']))
+""" % os.path.abspath(os.path.join(os.path.dirname(__file__), self.config['youtube']['json']))
         storage = Storage("%s-oauth2.json" % sys.argv[0])
         creds = storage.get()
         if creds is None or creds.invalid:
-            flow = flow_from_clientsecrets(self.config['json'], scope="https://www.googleapis.com/auth/youtube.force-ssl", message=MISSING_CLIENT_SECRETS_MESSAGE)
+            flow = flow_from_clientsecrets(self.config['youtube']['json'], scope="https://www.googleapis.com/auth/youtube.force-ssl", message=MISSING_CLIENT_SECRETS_MESSAGE)
             creds = run_flow(flow, storage)
         return build('youtube', 'v3', http=creds.authorize(httplib2.Http()))
     
@@ -99,7 +99,7 @@ https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
             part="snippet",
             body={
                 "snippet": {
-                    "playlistId": self.config['playlistID'],
+                    "playlistId": self.config['youtube']['playlistID'],
                     "position": 0,
                     "resourceId": {
                     "kind": "youtube#video",
@@ -123,7 +123,7 @@ https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
                 part="snippet",
                 maxResults=50,
                 pageToken=npt,
-                playlistId=self.config['playlistID']
+                playlistId=self.config['youtube']['playlistID']
             )
             response = request.execute()
             for r in response['items']:
@@ -154,7 +154,7 @@ https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
                 part="snippet",
                 maxResults=50,
                 pageToken=npt,
-                playlistId=self.config['playlistID']
+                playlistId=self.config['youtube']['playlistID']
             )
             response = request.execute()
             for r in response['items']:
@@ -170,7 +170,7 @@ https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
 def main():
     config = harold_config('config.yaml')
     harold = Harold(config)
-    harold.run()
+    harold.run(config['discord']['token'])
 
 
 if __name__ == '__main__':
