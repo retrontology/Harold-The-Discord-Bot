@@ -2,15 +2,13 @@ import discord
 import os
 from datetime import datetime
 from googleapiclient.discovery import build
-from oauth2client.client import flow_from_clientsecrets
-from oauth2client.file import Storage
-from oauth2client.tools import run_flow
-import googleapiclient.errors
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 import re
 import sys
 from urllib import parse
 from harold_config import harold_config
-import httplib2
+import pickle
 
 
 class Harold(discord.Client):
@@ -72,26 +70,26 @@ class Harold(discord.Client):
                 self.yt_add(id)
     
     def yt_init(self):
-        MISSING_CLIENT_SECRETS_MESSAGE = """
-WARNING: Please configure OAuth 2.0
-
-To make this sample run you will need to populate the client_secrets.json file
-found at:
-
-   %s
-
-with information from the API Console
-https://console.developers.google.com/
-
-For more information about the client_secrets.json file format, please visit:
-https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
-""" % os.path.abspath(os.path.join(os.path.dirname(__file__), self.config['youtube']['json']))
-        storage = Storage("%s-oauth2.json" % sys.argv[0])
-        creds = storage.get()
-        if creds is None or creds.invalid:
-            flow = flow_from_clientsecrets(self.config['youtube']['json'], scope="https://www.googleapis.com/auth/youtube.force-ssl", message=MISSING_CLIENT_SECRETS_MESSAGE)
-            creds = run_flow(flow, storage)
-        return build('youtube', 'v3', http=creds.authorize(httplib2.Http()))
+        api_name = 'youtube'
+        api_version = 'v3'
+        scopes = ['https://www.googleapis.com/auth/youtube.upload']
+        pickle_dir = os.path.join(os.path.dirname(__file__), 'pickles')
+        if not os.path.exists(pickle_dir):
+            os.mkdir(pickle_dir)
+        pickle_file = os.path.join(pickle_dir, f'token_Harold.pickle')
+        creds = None
+        if os.path.exists(pickle_file):
+            with open(pickle_file, 'rb') as token:
+                creds = pickle.load(token)
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(self.config['youtube']['json'], scopes)
+                creds = flow.run_console()
+            with open(pickle_file, 'wb') as token:
+                pickle.dump(creds, token)
+        return build(api_name, api_version, credentials=creds)
     
     def yt_add(self, id):
         if not id in self.yt_list:
